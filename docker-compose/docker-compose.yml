@@ -1,0 +1,100 @@
+version: '3'
+
+services:
+  traefik:
+    image: traefik:v1.7.0-rc3-alpine 
+    ports:
+      - "80:80"     # The HTTP port
+      - "443:443"     # The HTTP port
+      - "8080:8080" # The Web UI 
+    labels:
+      - "traefik.frontend.rule=Host:monitor.ranii.pro"
+      - "traefik.port=8080"
+    restart: always
+    environment:
+      - LEXICON_SLEEP_TIME=60
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock # So that Traefik can listen to the Doc
+      - /opt/traefik/traefik.toml:/etc/traefik/traefik.toml
+    container_name: traefik
+ 
+  h5ai:
+    image: corfr/h5ai
+    restart: always
+    labels:
+      - "traefik.frontend.rule=Host:download.ranii.pro"
+    volumes:
+      - /mnt/NAS/http:/var/www
+
+  h5ai_internal:
+    image: corfr/h5ai
+    restart: always
+    labels:
+      - "traefik.frontend.rule=Host:internal.ranii.pro"
+      - "traefik.frontend.auth.basic=user:$$MD5$$pass$$word"
+    volumes:
+      - /mnt/NAS/http_internal:/var/www
+  
+  whoami:
+    restart: always
+    image: emilevauge/whoami # A container that exposes an API to show its IP address
+    labels:
+      - "traefik.frontend.rule=Host:whoami.ranii.pro"
+
+  nginx:
+     image: nginx:stable-alpine
+     container_name: LEMP_nginx
+     restart: always
+     volumes:
+      - ./code:/code   # Donde metemos el codigo 
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf # Configuracion del NGINX
+     depends_on:
+      - php
+     labels:
+      - "traefik.frontend.rule=Host:dev.ranii.pro"
+    
+  mariaDB:
+      image: mariadb:latest
+      container_name: LEMP_mariaDB
+      restart: always
+      volumes:
+       - ./database:/var/lib/mysql:rw
+      ports:
+       - "3306:3306"  # Aqui si mantenemos el puerto porque no queremos filtrarlo
+      depends_on:
+       - nginx
+      environment:
+       - MYSQL_ROOT_PASSWORD=password # Password root          
+   
+  php:
+      image: php:7-fpm-alpine
+      container_name: LEMP_php
+      restart: always
+      volumes:
+       - ./code:/code
+      ports:
+       - "9000:9000" # Aqui tampoco quitamos el puerto, se usa en la conf del nginx       
+
+  phpmyadmin:
+      image: phpmyadmin/phpmyadmin
+      container_name: LEMP_phpMyAdmin
+      restart: always
+      labels:
+       - "traefik.frontend.rule=Host:db.ranii.pro"
+      environment:        
+       PMA_ARBITRARY: 1
+      depends_on:
+       - mariaDB
+
+  tomcat:
+      image: bitnami/tomcat:latest
+      restart: always
+      environment:
+         - TOMCAT_USERNAME=root
+         - TOMCAT_PASSWORD=password
+      labels:
+       - "traefik.frontend.rule=Host:tomcat.ranii.pro"
+      volumes:
+       - ./tomcat:/bitnami/tomcat
+      depends_on:
+       - mariaDB
