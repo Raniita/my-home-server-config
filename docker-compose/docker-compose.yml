@@ -98,3 +98,18 @@ services:
        - ./tomcat:/bitnami/tomcat
       depends_on:
        - mariaDB
+  samba:
+      image: charlesmknox/samba:latest
+      restart: always
+      ports: 
+       - 137:137/tcp
+       - 137:137/udp
+       - 138:138/tcp
+       - 138:138/udp
+       - 139:139
+       - 445:445
+       - 445:445/udp
+      volumes:
+       - /mnt/NAS/descargas:/share/descargas
+       - /mnt/NAS/Documentos:/share/Documentos
+      command: -u "user:password" -s "descargas:/share/descargas:rw:user" -s "documentos:/share/Documentos:rw:user"
