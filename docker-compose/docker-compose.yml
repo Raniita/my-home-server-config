@@ -1,4 +1,4 @@
-version: '3'
+version: '3.6'
 
 services:
   traefik:
@@ -16,6 +16,8 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock # So that Traefik can listen to the Doc
       - /opt/traefik/traefik.toml:/etc/traefik/traefik.toml
+      - /opt/traefik/rules.toml:/etc/traefik/rules.toml
+      - /opt/traefik/acme/acme.json:/etc/traefik/acme/acme.json
     container_name: traefik
  
   h5ai:
@@ -31,12 +33,12 @@ services:
     restart: always
     labels:
       - "traefik.frontend.rule=Host:internal.ranii.pro"
-      - "traefik.frontend.auth.basic=user:$$MD5$$pass$$word"
+      - "traefik.frontend.auth.basic=user:$$apr1$$lAIgLetv$$5HpJQ0tkjwqHgUeeT5tGx1"
     volumes:
       - /mnt/NAS/http_internal:/var/www
   
   whoami:
-    restart: always
+    restart: "no"
     image: emilevauge/whoami # A container that exposes an API to show its IP address
     labels:
       - "traefik.frontend.rule=Host:whoami.ranii.pro"
@@ -61,10 +63,12 @@ services:
        - ./database:/var/lib/mysql:rw
       ports:
        - "3306:3306"  # Aqui si mantenemos el puerto porque no queremos filtrarlo
+      labels:
+       - "traefik.enable=false" 
       depends_on:
        - nginx
       environment:
-       - MYSQL_ROOT_PASSWORD=password # Password root          
+       - MYSQL_ROOT_PASSWORD=pass # Password root          
    
   php:
       image: php:7-fpm-alpine
@@ -72,6 +76,8 @@ services:
       restart: always
       volumes:
        - ./code:/code
+      labels:
+       - "traefik.enable=false"
       ports:
        - "9000:9000" # Aqui tampoco quitamos el puerto, se usa en la conf del nginx       
 
@@ -87,8 +93,8 @@ services:
        - mariaDB
 
   tomcat:
+      restart: "no"
       image: bitnami/tomcat:latest
-      restart: always
       environment:
          - TOMCAT_USERNAME=root
          - TOMCAT_PASSWORD=password
@@ -101,6 +107,7 @@ services:
   samba:
       image: charlesmknox/samba:latest
       restart: always
+      container_name: samba
       ports: 
        - 137:137/tcp
        - 137:137/udp
@@ -112,4 +119,32 @@ services:
       volumes:
        - /mnt/NAS/descargas:/share/descargas
        - /mnt/NAS/Documentos:/share/Documentos
-      command: -u "user:password" -s "descargas:/share/descargas:rw:user" -s "documentos:/share/Documentos:rw:user"
+      labels:
+       - "traefik.enable=false"
+      command: -u "rani:1706" -s "descargas:/share/descargas:rw:rani" -s "documentos:/share/Documentos:rw:rani"
+
+  teamspeak:
+      container_name: teamspeak3
+      image: teamspeak
+      restart: always
+      ports:
+       - "9987:9987/udp"
+       - "30033:30033"
+       - "10011:10011"
+       - "41144:41144"
+      volumes:
+       - /opt/teamspeak/ts3:/data
+       - /opt/teamspeak/licensekey.dat:/var/ts3server/licensekey.dat
+      environment:
+       - TS3SERVER_LICENSE=accept
+       - TS3SERVER_DB_PLUGIN=ts3db_mariadb
+       - TS3SERVER_DB_SQLCREATEPATH=create_mariadb
+       - TS3SERVER_DB_HOST=mariaDB
+       - TS3SERVER_DB_USER=root
+       - TS3SERVER_DB_PASSWORD=pass
+       - TS3SERVER_DB_NAME=teamspeak
+       - TS3SERVER_DB_WAITUNTILREADY=30
+      depends_on:
+       - mariaDB
+      labels:
+       - "traefik.enable=false"
