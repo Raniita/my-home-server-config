@@ -1,0 +1,28 @@
+[frontends]
+  [frontends.octoprint]
+  backend = "b_octoprint"
+    [frontends.octoprint.routes.r1]
+    rule = "Host: octoprint.ranii.pro"
+  [frontends.transmission]
+  backend = "b_transmission"
+    [frontends.transmission.routes.r1]
+    rule = "Host: transmission.ranii.pro"
+  [frontends.webcam]
+  backend = "b_webcam"
+    [frontends.webcam.routes.r1]
+    rule = "Host: webcam.ranii.pro"
+
+[backends]
+  [backends.b_octoprint]
+    [backends.b_octoprint.servers.raspi]
+    url = "http://alarmpi:5000"
+    weight = 1
+  [backends.b_transmission]
+    [backends.b_transmission.servers.server]
+    url = "http://rani-server:9091"
+    weight = 1
+  [backends.b_webcam]
+    [backends.b_webcam.servers.raspi]
+    url = "http://alarmpi:40540"
+    weight = 1
+
