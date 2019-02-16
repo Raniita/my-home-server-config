@@ -15,6 +15,10 @@ defaultEntryPoints = ["http", "https"]
   
   [entryPoints.traefik]
   address = ":8080"
+  [entryPoints.traefik.auth]
+    [entryPoints.traefik.auth.basic]
+    users = [
+    "user:passwordhash"]
 
 [api]
   dashboard = true
@@ -26,7 +30,7 @@ defaultEntryPoints = ["http", "https"]
 
  # Let's encrypt configuration
 [acme]
-email = "your_email@host.com"
+email = "email@email.com"
 storage = "/etc/traefik/acme/acme.json"
 entryPoint = "https"
 acmeLogging = true

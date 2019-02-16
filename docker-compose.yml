@@ -2,16 +2,18 @@ version: '3.6'
 
 services:
   traefik:
-    image: traefik:v1.7.0-rc3-alpine 
+    image: traefik:latest 
     ports:
-      - "80:80"     # The HTTP port
+      - "80:80"       # The HTTP port
       - "443:443"     # The HTTP port
-      - "8080:8080" # The Web UI 
+      - "8080:8080"   # The Web UI 
     labels:
       - "traefik.frontend.rule=Host:monitor.ranii.pro"
       - "traefik.port=8080"
-    restart: always
+      - "com.centurylinklabs.watchtower.enable=true"
+    restart: on-failure
     environment:
+      - TZ=Europe/Madrid
       - LEXICON_SLEEP_TIME=60
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock # So that Traefik can listen to the Doc
@@ -22,18 +24,22 @@ services:
  
   h5ai:
     image: corfr/h5ai
-    restart: always
+    restart: on-failure
+    container_name: h5ai_download
     labels:
       - "traefik.frontend.rule=Host:download.ranii.pro"
+      - "com.centurylinklabs.watchtower.enable=true"
     volumes:
       - /mnt/NAS/http:/var/www
 
   h5ai_internal:
     image: corfr/h5ai
-    restart: always
+    restart: on-failure
+    container_name: h5ai_internal
     labels:
       - "traefik.frontend.rule=Host:internal.ranii.pro"
-      - "traefik.frontend.auth.basic=user:$$apr1$$lAIgLetv$$5HpJQ0tkjwqHgUeeT5tGx1"
+      - "traefik.frontend.auth.basic=user:passwordhasj"
+      - "com.centurylinklabs.watchtower.enable=true"    
     volumes:
       - /mnt/NAS/http_internal:/var/www
   
@@ -42,51 +48,59 @@ services:
     image: emilevauge/whoami # A container that exposes an API to show its IP address
     labels:
       - "traefik.frontend.rule=Host:whoami.ranii.pro"
+      - "com.centurylinklabs.watchtower.enable=true"
 
   nginx:
      image: nginx:stable-alpine
      container_name: LEMP_nginx
-     restart: always
+     restart: on-failure
      volumes:
       - ./code:/code   # Donde metemos el codigo 
+      - ./movie-webpage:/movie
+      - ./nginx/movie.conf:/etc/nginx/conf.d/movie.conf
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf # Configuracion del NGINX
-     depends_on:
-      - php
+      - ./nginx/cockpit.conf:/etc/nginx/conf.d/cockpit.conf # Proxy Cockpit
      labels:
-      - "traefik.frontend.rule=Host:dev.ranii.pro"
+      - "traefik.frontend.rule=Host:dev.ranii.pro,cp.ranii.pro,movie.ranii.pro"
+      - "com.centurylinklabs.watchtower.enable=true"
     
   mariaDB:
       image: mariadb:latest
       container_name: LEMP_mariaDB
-      restart: always
+      restart: on-failure
       volumes:
        - ./database:/var/lib/mysql:rw
-      ports:
-       - "3306:3306"  # Aqui si mantenemos el puerto porque no queremos filtrarlo
       labels:
-       - "traefik.enable=false" 
+       - "traefik.enable=false"
+       - "com.centurylinklabs.watchtower.enable=true"
       depends_on:
        - nginx
       environment:
-       - MYSQL_ROOT_PASSWORD=pass # Password root          
+       - TZ=Europe/Madrid
+       - MYSQL_ROOT_PASSWORD=password # Password root          
    
   php:
       image: php:7-fpm-alpine
       container_name: LEMP_php
-      restart: always
+      restart: on-failure
       volumes:
        - ./code:/code
+       - ./movie-webpage:/movie
       labels:
        - "traefik.enable=false"
+       - "com.centurylinklabs.watchtower.enable=true"
       ports:
        - "9000:9000" # Aqui tampoco quitamos el puerto, se usa en la conf del nginx       
+      depends_on:
+       - mariaDB
 
   phpmyadmin:
       image: phpmyadmin/phpmyadmin
       container_name: LEMP_phpMyAdmin
-      restart: always
+      restart: on-failure
       labels:
        - "traefik.frontend.rule=Host:db.ranii.pro"
+       - "com.centurylinklabs.watchtower.enable=true"
       environment:        
        PMA_ARBITRARY: 1
       depends_on:
@@ -95,18 +109,21 @@ services:
   tomcat:
       restart: "no"
       image: bitnami/tomcat:latest
+      container_name: tomcat
       environment:
          - TOMCAT_USERNAME=root
          - TOMCAT_PASSWORD=password
       labels:
        - "traefik.frontend.rule=Host:tomcat.ranii.pro"
+       - "com.centurylinklabs.watchtower.enable=true"
       volumes:
        - ./tomcat:/bitnami/tomcat
       depends_on:
        - mariaDB
+  
   samba:
       image: charlesmknox/samba:latest
-      restart: always
+      restart: on-failure
       container_name: samba
       ports: 
        - 137:137/tcp
@@ -121,12 +138,13 @@ services:
        - /mnt/NAS/Documentos:/share/Documentos
       labels:
        - "traefik.enable=false"
-      command: -u "rani:1706" -s "descargas:/share/descargas:rw:rani" -s "documentos:/share/Documentos:rw:rani"
+       - "com.centurylinklabs.watchtower.enable=true"
+      command: -u "user:password" -s "descargas:/share/descargas:rw:rani" -s "documentos:/share/Documentos:rw:rani"
 
   teamspeak:
       container_name: teamspeak3
       image: teamspeak
-      restart: always
+      restart: on-failure
       ports:
        - "9987:9987/udp"
        - "30033:30033"
@@ -136,15 +154,28 @@ services:
        - /opt/teamspeak/ts3:/data
        - /opt/teamspeak/licensekey.dat:/var/ts3server/licensekey.dat
       environment:
+       - TZ=Europe/Madrid
        - TS3SERVER_LICENSE=accept
        - TS3SERVER_DB_PLUGIN=ts3db_mariadb
        - TS3SERVER_DB_SQLCREATEPATH=create_mariadb
        - TS3SERVER_DB_HOST=mariaDB
        - TS3SERVER_DB_USER=root
-       - TS3SERVER_DB_PASSWORD=pass
+       - TS3SERVER_DB_PASSWORD=password
        - TS3SERVER_DB_NAME=teamspeak
        - TS3SERVER_DB_WAITUNTILREADY=30
       depends_on:
        - mariaDB
       labels:
        - "traefik.enable=false"
+       - "com.centurylinklabs.watchtower.enable=true" 
+
+  watchtower:
+      image: v2tec/watchtower
+      container_name: watchtower
+      labels:
+       - "traefik.enable=false"
+       - "com.centurylinklabs.watchtower.enable=true"
+      restart: on-failure
+      volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
+      command: --cleanup --interval 3600 --label-enable

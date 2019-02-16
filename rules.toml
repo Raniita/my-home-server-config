@@ -25,4 +25,3 @@
     [backends.b_webcam.servers.raspi]
     url = "http://alarmpi:40540"
     weight = 1
-
